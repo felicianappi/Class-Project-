@@ -1,0 +1,166 @@
+#to import
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+import statsmodels.stats.anova as anova
+from statistics import mean
+import matplotlib.pyplot as plt
+
+#read in csv file
+charges = pd.read_csv("Charges.csv")
+
+charges.head()
+
+#perform multilinear regression on all 7 predictor variables
+Age = charges["Age"]
+BMI = charges["BMI"]
+Plan = charges["Plan"]
+Sex = charges["Sex"]
+Smoke = charges["Smoke"]
+Income = charges["Income"]
+Charges = charges["Charges"]
+
+df1 = pd.DataFrame(Age, columns = ["Age"])
+df2 = pd.DataFrame(BMI, columns = ["BMI"])
+df3 = pd.DataFrame(Plan, columns = ["Plan"])
+df4 = pd.DataFrame(Sex, columns = ["Sex"])
+df5 = pd.DataFrame(Smoke, columns = ["Smoke"])
+df6 = pd.DataFrame(Income, columns = ["Income"])
+df7 = pd.DataFrame(Charges, columns = ["Charges"])
+
+weight_data = pd.concat([df1, df2, df3,df4,df5,df6,df7], axis=1)
+weight_data = pd.get_dummies(weight_data, columns=['Smoke'], prefix = ['Smoke'])
+weight_data = pd.get_dummies(weight_data, columns=['Sex'], prefix = ['Sex'])
+
+
+print(weight_data.head())
+model = ols('Charges ~ Age+BMI+Plan+Sex+Smoke+Income', data = weight_data).fit()
+
+
+print(model.summary())
+
+#drop plan from the model, it has a high p-value
+model2 = ols('Charges ~ Age+BMI+Sex+Smoke+Income', data = weight_data).fit()
+
+print(model2.summary())
+
+#test income differences across different insurance plans
+charges_mean_by_plan = weight_data.groupby('Plan')['Income'].mean()
+charges_median_by_plan = weight_data.groupby('Plan')['Income'].median()
+
+# Print the result
+print(charges_mean_by_plan)
+print(charges_median_by_plan)
+
+mod = ols('Charges ~ BMI+Smoke_N+Smoke_Y',data = weight_data).fit()
+print(sm.stats.anova_lm(mod, typ=2))
+
+mo = ols ('Charges ~ Income + Plan' ,data = weight_data). fit()
+print(sm.stats.anova_lm(mo, typ=2))
+
+#graphs of income across different insurance plans
+Plan1 = charges[charges["Age"] == 1]
+Plan2 = charges[charges["Plan"] == 2]
+Plan3 = charges[charges["Plan"] == 3]
+
+plt.boxplot([Plan1["Income"], Plan2["Income"], Plan3["Income"]], labels=['Plan 1', 'Plan 2', 'Plan 3'])
+plt.title('Income vs. Different Insurance Plans')
+plt.xlabel('Insurance Plans')
+plt.ylabel('Income')
+
+plt.show()
+
+#graphs of charges across different age groups
+Under65 = charges[charges["Age"] < 60]
+Over65 = charges[(charges['Age'] >= 60) & (charges['Age'] < 71)]
+Over70 = charges[(charges['Age'] >= 71)]
+
+
+plt.boxplot([Under65["Charges"], Over65["Charges"], Over70["Charges"]], labels=['Under 60', 'Between 60 and 71', 'Over 71'])
+plt.title('Charges vs. Different Age Groups')
+plt.xlabel('Age Groups')
+plt.ylabel('Charges')
+
+plt.show()
+
+#graphs of charges across smokers and non-smokers according to their BMI
+smokers = charges[charges['Smoke'] == 'Y']
+nonsmokers = charges[charges['Smoke'] == 'N']
+
+
+Underweight = charges[charges['BMI'] < 18.5]
+Normal = charges[(charges['BMI'] >= 18.5) & (charges['BMI'] < 25)]
+Overweight = charges[(charges['BMI'] >= 25) & (charges['BMI'] < 30)]
+Obese = charges[charges['BMI'] >= 30]
+
+fig, ax = plt.subplots(figsize=(20,10))
+boxprops = dict(linewidth=2, color='white')
+medianprops = dict(linewidth=2, color='black')
+plt.boxplot([smokers[smokers['BMI'] < 18.5]['Charges'],
+             nonsmokers[nonsmokers['BMI'] < 18.5]['Charges'],
+             smokers[(smokers['BMI'] >= 18.5) & (smokers['BMI'] < 25)]['Charges'],
+             nonsmokers[(nonsmokers['BMI'] >= 18.5) & (nonsmokers['BMI'] < 25)]['Charges'],
+             smokers[(smokers['BMI'] >= 25) & (smokers['BMI'] < 30)]['Charges'],
+             nonsmokers[(nonsmokers['BMI'] >= 25) & (nonsmokers['BMI'] < 30)]['Charges'],
+             smokers[smokers['BMI'] >= 30]['Charges'],
+             nonsmokers[nonsmokers['BMI'] >= 30]['Charges']],
+            labels=['Underweight (smoker)', 'Underweight (non-smoker)',
+                    'Normal (smoker)', 'Normal (non-smoker)','Overweight (smoker)',
+                    'Overweight (non-smoker)','Obese (smoker)', 'Obese (non-smoker)'])
+
+plt.title('Differences in Charges by BMI Category and Smoking Status')
+plt.xlabel('BMI and Smoker Status Grouping')
+plt.ylabel('Charges')
+
+plt.show()
+
+#residual plots
+plt.figure(figsize = (20, 16))
+plt.tight_layout()
+
+plt.subplot(2,2,1,facecolor='#002845')
+plt.scatter(x = charges['BMI'], y = Charges, color = 'white', edgecolor = 'k')
+xmin = min(charges['BMI'])
+xmax = max(charges['BMI'])
+plt.hlines(y = 0, xmin = xmin, xmax = xmax, color = 'red', linestyle = '--')
+plt.xlabel('BMI', fontsize = 16,color='#002845')
+plt.ylabel('Residuals', fontsize = 16,color='#002845')
+plt.xticks(fontsize = 12,color='#002845')
+plt.yticks(fontsize = 12,color='#002845')
+plt.title('BMI vs. Residuals', fontsize = 24, color='#002845')
+
+plt.subplot(2, 2, 2,facecolor='#002845')
+plt.scatter(x = charges['Age'], y = Charges, color = 'white', edgecolor = 'k')
+xmin = min(charges['Age'])
+xmax = max(charges['Age'])
+plt.hlines(y = 0, xmin = xmin, xmax = xmax, color = 'red', linestyle = '--')
+plt.xlabel('Age', fontsize = 16,color='#002845')
+plt.ylabel('Residuals', fontsize = 16,color='#002845')
+plt.xticks(fontsize = 12,color='#002845')
+plt.yticks(fontsize = 12,color='#002845')
+plt.title('Age vs. Residuals', fontsize = 24,color='#002845')
+
+plt.subplot(2, 2, 3, facecolor='#002845')
+plt.scatter(x = charges['Plan'], y = Charges, color = 'white', edgecolor = 'k')
+xmin = min(charges['Plan'])
+xmax = max(charges['Plan'])
+plt.hlines(y = 0, xmin = xmin, xmax = xmax, color = 'red', linestyle = '--')
+plt.xlabel('Plan', fontsize = 16,color='#002845')
+plt.ylabel('Residuals', fontsize = 16,color='#002845')
+plt.xticks(fontsize = 12,color='#002845')
+plt.yticks(fontsize = 12,color='#002845')
+plt.title('Plan vs. Residuals', fontsize = 24,color='#002845')
+
+plt.subplot(2, 2, 4,facecolor='#002845')
+plt.scatter(x = model.fittedvalues, y = model.resid, color = 'white', edgecolor = 'k')
+xmin = min(Charges)
+xmax = max(Charges)
+plt.hlines(y = 0, xmin = xmin, xmax = xmax, color = 'red', linestyle = '--')
+plt.xlabel('Fitted values', fontsize = 16,color='#002845')
+plt.ylabel('Residuals', fontsize = 16,color='#002845')
+plt.xticks(fontsize = 12,color='#002845')
+ax.set_facecolor('#002845')
+fig.patch.set_facecolor('#002845')
+plt.yticks(fontsize = 12,color='#002845')
+plt.title('Fitted Values vs. Residuals', fontsize = 24,color='#002845')
+plt.show()
